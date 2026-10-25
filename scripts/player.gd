@@ -1,0 +1,127 @@
+extends CharacterBody2D
+
+const BASE_SPEED := 220.0
+const DASH_SPEED := 500.0
+const PLAYER_RADIUS := 18.0
+
+var input_prefix := "p1"
+var player_name := "PLAYER 1"
+var color_name := "Red"
+var tint := Color(1.0, 0.2, 0.2)
+var ability_name := ""
+var last_direction := Vector2.RIGHT
+var dash_timer := 0.0
+var shield_time := 0.0
+var alive := true
+var active := true
+
+func _ready() -> void:
+    $Body.polygon = _circle_points(18, 18)
+    $Body.color = tint
+    $NameLabel.text = player_name
+    $NameLabel.add_theme_font_size_override("font_size", 12)
+    _update_visuals()
+
+func set_color_choice(name: String, color_value: Color) -> void:
+    color_name = name
+    tint = color_value
+    $Body.color = tint
+
+func _physics_process(delta: float) -> void:
+    if not alive or not active:
+        return
+
+    var move_vector := Vector2.ZERO
+    if input_prefix == "p1":
+        if Input.is_key_pressed(KEY_W):
+            move_vector.y -= 1
+        if Input.is_key_pressed(KEY_S):
+            move_vector.y += 1
+        if Input.is_key_pressed(KEY_A):
+            move_vector.x -= 1
+        if Input.is_key_pressed(KEY_D):
+            move_vector.x += 1
+    else:
+        if Input.is_key_pressed(KEY_UP):
+            move_vector.y -= 1
+        if Input.is_key_pressed(KEY_DOWN):
+            move_vector.y += 1
+        if Input.is_key_pressed(KEY_LEFT):
+            move_vector.x -= 1
+        if Input.is_key_pressed(KEY_RIGHT):
+            move_vector.x += 1
+
+    if move_vector.length() > 0.0:
+        move_vector = move_vector.normalized()
+        last_direction = move_vector
+
+    var final_speed := BASE_SPEED
+    if dash_timer > 0.0:
+        final_speed = DASH_SPEED
+        dash_timer = max(0.0, dash_timer - delta)
+        if dash_timer == 0.0:
+            ability_name = ""
+
+    if move_vector.length() > 0.0:
+        velocity = move_vector * final_speed
+    else:
+        velocity = Vector2.ZERO
+
+    move_and_slide()
+
+    var arena_min_x := 160.0 + 30.0
+    var arena_min_y := 90.0 + 30.0
+    var arena_max_x := 160.0 + 960.0 - 30.0
+    var arena_max_y := 90.0 + 540.0 - 30.0
+    position.x = clamp(position.x, arena_min_x, arena_max_x)
+    position.y = clamp(position.y, arena_min_y, arena_max_y)
+
+    if shield_time > 0.0:
+        shield_time = max(0.0, shield_time - delta)
+        if shield_time == 0.0:
+            _update_visuals()
+
+    _update_visuals()
+
+func _update_visuals() -> void:
+    if not is_inside_tree():
+        return
+
+    $Body.color = tint
+    if shield_time > 0.0:
+        $Body.color = Color(0.5, 0.7, 1.0, 1.0)
+        if $Body.visible:
+            pass
+
+func collect_ability(type_name: String) -> void:
+    if ability_name != "":
+        return
+    if type_name == "dash" and color_name == "Red":
+        ability_name = "dash"
+    elif type_name == "shield" and color_name == "Blue":
+        ability_name = "shield"
+
+func activate_ability() -> void:
+    if ability_name == "dash":
+        dash_timer = 0.18
+        ability_name = ""
+    elif ability_name == "shield":
+        shield_time = 10.0
+        ability_name = ""
+        _update_visuals()
+
+func take_damage() -> void:
+    if shield_time > 0.0:
+        return
+    alive = false
+    visible = false
+    active = false
+    set_process(false)
+    set_physics_process(false)
+
+func _circle_points(radius: float, steps: int) -> PackedVector2Array:
+    var points := PackedVector2Array()
+    for i in range(steps):
+        var angle = TAU * float(i) / float(steps)
+        points.append(Vector2(cos(angle) * radius, sin(angle) * radius))
+    return points
